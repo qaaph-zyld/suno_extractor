@@ -1,0 +1,89 @@
+# Suno Extractor Pro Configuration
+# ================================
+
+# Browser settings for extraction
+browser:
+  type: chrome  # chrome or firefox
+  debug_port: 9222
+  headless: false
+  timeout: 30
+
+# Extraction settings
+extraction:
+  output_dir: suno_songs
+  tabs:
+    - creations
+    - likes
+  formats:
+    - json
+    - csv
+    - md
+  extract_details: true
+  exclude_disliked: true
+  scroll_pause: 1.2
+  max_scrolls: 600
+
+# Download settings
+download:
+  output_dir: suno_downloads
+  format: mp3  # mp3, m4a, wav
+  max_workers: 3
+  add_metadata: true
+  download_cover_art: true
+  cover_art_dir: suno_covers
+  retry_attempts: 3
+  retry_delay: 2
+
+# Audio analysis settings
+audio_analysis:
+  enabled: true
+  detect_bpm: true
+  detect_key: true
+  generate_waveform: true
+  waveform_dir: suno_waveforms
+  waveform_width: 800
+  waveform_height: 200
+
+# Audio processing settings
+audio_processing:
+  normalize: false
+  normalize_target_dbfs: -14
+  convert_format: null  # null, mp3, flac, wav
+
+# Database settings
+database:
+  path: suno_library.db
+  backup_enabled: true
+  backup_dir: backups
+
+# Playlist settings
+playlists:
+  output_dir: suno_playlists
+  default_format: m3u
+  
+# Web dashboard settings
+web_dashboard:
+  enabled: true
+  host: 127.0.0.1
+  port: 5000
+  debug: false
+
+# Player settings
+player:
+  backend: pygame  # pygame or vlc
+  default_volume: 0.7
+  shuffle: false
+  repeat: false  # false, one, all
+
+# Logging settings
+logging:
+  level: INFO
+  file: suno_extractor.log
+  console: true
+  rich_formatting: true
+
+# CDN patterns for downloading
+cdn_patterns:
+  - https://cdn1.suno.ai/
+  - https://cdn2.suno.ai/
+  - https://audiopipe.suno.ai/

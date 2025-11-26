@@ -1,8 +1,8 @@
 # 🎵 Suno Extractor Pro
 
-A comprehensive toolkit for managing your Suno AI music library. Extract, download, organize, and play your AI-generated music collection.
+A comprehensive toolkit for managing your Suno AI music library. Extract, download, organize, analyze, and play your AI-generated music collection.
 
-![Version](https://img.shields.io/badge/version-2.0-blue)
+![Version](https://img.shields.io/badge/version-3.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
@@ -21,6 +21,21 @@ A comprehensive toolkit for managing your Suno AI music library. Extract, downlo
 | **📊 Analytics** | Statistics dashboard for your music library |
 | **💻 Rich CLI** | Beautiful command-line interface with colors and tables |
 
+### New in v3.0
+
+| Feature | Description |
+|---------|-------------|
+| **🌐 Web Dashboard** | Beautiful Flask-based local web UI with player |
+| **🗄️ SQLite Database** | Persistent storage with ratings, play history, playlists |
+| **🎹 Audio Analysis** | BPM detection, musical key detection, waveform generation |
+| **🔊 Audio Processing** | Normalize volume, convert formats (MP3/FLAC/WAV) |
+| **🖼️ Cover Art Manager** | Download and organize album artwork |
+| **🔄 Duplicate Detection** | Find duplicates by title, audio fingerprint, or hash |
+| **⭐ Rating System** | Rate songs 1-5 stars with persistent storage |
+| **📜 Listening History** | Track play counts and recently played |
+| **⚙️ YAML Configuration** | Centralized config file for all settings |
+| **📤 Spotify Export** | Export to Spotify-compatible CSV format |
+
 ### Comparison with Competitors
 
 | Feature | Suno Extractor Pro | Malith-Rukshan/Suno-API | GwyrddGlas/Suno-Downloader |
@@ -28,12 +43,17 @@ A comprehensive toolkit for managing your Suno AI music library. Extract, downlo
 | Extract from Library | ✅ Full | ❌ | ❌ |
 | Audio Download | ✅ | ✅ | ✅ |
 | ID3 Metadata | ✅ | ❌ | ❌ |
-| Cover Art Embed | ✅ | ❌ | ❌ |
-| Music Player | ✅ | ❌ | ❌ |
-| Playlist Export | ✅ | ❌ | ❌ |
+| Cover Art | ✅ Embed + Separate | ❌ | ❌ |
+| Music Player | ✅ Terminal + Web | ❌ | ❌ |
+| Web Dashboard | ✅ Flask UI | ❌ | ❌ |
+| Database | ✅ SQLite | ❌ | ❌ |
+| BPM/Key Detection | ✅ librosa | ❌ | ❌ |
+| Audio Normalization | ✅ pydub | ❌ | ❌ |
+| Duplicate Detection | ✅ | ❌ | ❌ |
+| Rating System | ✅ | ❌ | ❌ |
+| Playlist Export | ✅ M3U | ❌ | ❌ |
+| Spotify Export | ✅ CSV | ❌ | ❌ |
 | CLI Interface | ✅ Rich | ✅ Basic | ✅ Basic |
-| Search/Filter | ✅ | ❌ | ❌ |
-| Statistics | ✅ | ❌ | ❌ |
 | Export Formats | MD/JSON/CSV | JSON | - |
 
 ## 🚀 Quick Start
@@ -162,16 +182,39 @@ python suno_cli.py interactive # Interactive menu
 ```
 suno-extractor/
 ├── suno_extractor.py      # Core web scraper
-├── suno_downloader.py     # Audio downloader & analyzer
-├── suno_player.py         # Music player
-├── suno_cli.py            # CLI interface
+├── suno_downloader.py     # Audio downloader & ID3 tagger
+├── suno_player.py         # Terminal music player
+├── suno_cli.py            # Rich CLI interface
+├── suno_core.py           # Config & SQLite database
+├── suno_audio.py          # BPM/key detection, waveforms, normalization
+├── suno_web.py            # Flask web dashboard
+├── config.yaml            # Configuration file
 ├── requirements.txt       # Dependencies
 ├── README.md              # This file
-├── setup_requirements.md  # Detailed setup guide
+├── suno_library.db        # SQLite database
 ├── suno_songs/            # Extracted metadata (JSON, CSV, MD)
 ├── suno_downloads/        # Downloaded audio files
+├── suno_covers/           # Cover art images
+├── suno_waveforms/        # Generated waveform images
 └── suno_playlists/        # Generated playlists
 ```
+
+## 🌐 Web Dashboard
+
+Start the beautiful web interface:
+
+```bash
+python suno_web.py --port 5000
+```
+
+Open http://localhost:5000 in your browser for:
+- Visual library browsing with cover art
+- Built-in audio player with progress bar
+- Star ratings (1-5)
+- Search and filter
+- Statistics dashboard
+- Import/Export tools
+- Spotify CSV export
 
 ## 🔧 Configuration
 
@@ -269,10 +312,39 @@ Contributions welcome! Please read the contributing guidelines first.
 3. Make your changes
 4. Submit a pull request
 
+## 🎹 Audio Analysis
+
+Analyze your music collection for BPM, musical key, and more:
+
+```bash
+# Analyze a single file
+python suno_audio.py analyze path/to/song.mp3
+
+# Generate waveform image
+python suno_audio.py waveform path/to/song.mp3
+
+# Batch analyze all downloaded songs
+python suno_audio.py batch-analyze suno_downloads/
+
+# Normalize audio volume
+python suno_audio.py normalize path/to/song.mp3
+
+# Convert format
+python suno_audio.py convert path/to/song.mp3 flac
+```
+
+**Note:** Audio analysis requires optional dependencies:
+```bash
+pip install librosa numpy matplotlib pydub
+```
+
 ## 🙏 Acknowledgments
 
 - [Suno AI](https://suno.com) - AI music generation platform
 - [Selenium](https://selenium.dev) - Browser automation
+- [Flask](https://flask.palletsprojects.com) - Web framework
 - [Rich](https://rich.readthedocs.io) - Terminal formatting
 - [Mutagen](https://mutagen.readthedocs.io) - Audio metadata
 - [Pygame](https://pygame.org) - Audio playback
+- [librosa](https://librosa.org) - Audio analysis
+- [pydub](https://github.com/jiaaro/pydub) - Audio processing

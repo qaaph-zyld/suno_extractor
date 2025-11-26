@@ -1,9 +1,21 @@
-# Core dependencies
+# Core dependencies - Web Scraping
 selenium==4.15.2
 beautifulsoup4==4.12.2
 lxml>=5.3.0
 webdriver-manager==4.0.2
 
+# HTTP requests for downloading
+requests>=2.31.0
+
+# Audio metadata tagging (ID3)
+mutagen>=1.47.0
+
+# Rich CLI interface
+rich>=13.7.0
+
+# Audio playback (choose one)
+pygame>=2.5.0
+# python-vlc>=3.0.0  # Alternative - requires VLC installed
+
 # Optional: Progress bars
 tqdm==4.66.1
-

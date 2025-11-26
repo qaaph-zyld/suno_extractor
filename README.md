@@ -1,0 +1,278 @@
+# 🎵 Suno Extractor Pro
+
+A comprehensive toolkit for managing your Suno AI music library. Extract, download, organize, and play your AI-generated music collection.
+
+![Version](https://img.shields.io/badge/version-2.0-blue)
+![Python](https://img.shields.io/badge/python-3.8+-green)
+![License](https://img.shields.io/badge/license-MIT-orange)
+
+## ✨ Features
+
+### Core Capabilities
+
+| Feature | Description |
+|---------|-------------|
+| **🔍 Smart Extraction** | Connect to existing Chrome session, extract all songs with metadata |
+| **📥 Audio Download** | Download MP3/M4A/WAV files directly from Suno CDN |
+| **🏷️ ID3 Tagging** | Automatic metadata embedding (title, artist, cover art, lyrics) |
+| **🎵 Music Player** | Built-in terminal player with playback controls |
+| **📋 Playlist Export** | Create M3U playlists for any media player |
+| **🔎 Search & Filter** | Query your local collection by title, tags, lyrics |
+| **📊 Analytics** | Statistics dashboard for your music library |
+| **💻 Rich CLI** | Beautiful command-line interface with colors and tables |
+
+### Comparison with Competitors
+
+| Feature | Suno Extractor Pro | Malith-Rukshan/Suno-API | GwyrddGlas/Suno-Downloader |
+|---------|-------------------|------------------------|---------------------------|
+| Extract from Library | ✅ Full | ❌ | ❌ |
+| Audio Download | ✅ | ✅ | ✅ |
+| ID3 Metadata | ✅ | ❌ | ❌ |
+| Cover Art Embed | ✅ | ❌ | ❌ |
+| Music Player | ✅ | ❌ | ❌ |
+| Playlist Export | ✅ | ❌ | ❌ |
+| CLI Interface | ✅ Rich | ✅ Basic | ✅ Basic |
+| Search/Filter | ✅ | ❌ | ❌ |
+| Statistics | ✅ | ❌ | ❌ |
+| Export Formats | MD/JSON/CSV | JSON | - |
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/your-username/suno-extractor.git
+cd suno-extractor
+
+# Create virtual environment
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+source .venv/bin/activate  # Linux/Mac
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Basic Usage
+
+#### 1. Extract Songs from Suno
+
+```bash
+# Start Chrome with debugging enabled
+chrome.exe --remote-debugging-port=9222
+
+# Run extraction
+python suno_cli.py extract --browser chrome --port 9222
+```
+
+#### 2. Download Audio Files
+
+```bash
+python suno_cli.py download --json-file suno_songs/suno_liked_songs_20251031.json
+```
+
+#### 3. View Statistics
+
+```bash
+python suno_cli.py stats
+```
+
+#### 4. Search Your Collection
+
+```bash
+python suno_cli.py search "electronic"
+```
+
+#### 5. Play Music
+
+```bash
+python suno_player.py --dir suno_downloads
+```
+
+## 📖 Module Reference
+
+### `suno_extractor.py` - Web Scraper
+
+The core extraction engine that connects to your browser and extracts song data.
+
+```python
+from suno_extractor import SunoExtractor
+
+extractor = SunoExtractor(output_dir="suno_songs", browser="chrome")
+extractor.connect_to_existing_browser(debug_port=9222)
+output_files = extractor.run_extraction(
+    extract_details=True,
+    save_formats=['md', 'json', 'csv'],
+    tabs=['creations', 'likes']
+)
+```
+
+### `suno_downloader.py` - Audio Downloader
+
+Downloads audio files with automatic ID3 tagging.
+
+```python
+from suno_downloader import SunoDownloader, CollectionAnalyzer
+
+# Download all songs
+downloader = SunoDownloader("suno_downloads")
+results = downloader.download_from_json("suno_songs/collection.json")
+
+# Analyze collection
+analyzer = CollectionAnalyzer("suno_songs/collection.json")
+stats = analyzer.get_statistics()
+print(f"Total songs: {stats['total_songs']}")
+print(f"Total duration: {stats['total_duration_formatted']}")
+```
+
+### `suno_player.py` - Music Player
+
+Terminal-based music player with full controls.
+
+```python
+from suno_player import SunoPlayer, PlayerUI
+
+player = SunoPlayer("suno_downloads")
+player.load_playlist_from_dir()
+player.play(0)  # Play first song
+
+# Or run interactive UI
+ui = PlayerUI(player)
+ui.run()
+```
+
+### `suno_cli.py` - Command Line Interface
+
+Full-featured CLI with all commands.
+
+```bash
+# Available commands
+python suno_cli.py extract     # Extract from Suno
+python suno_cli.py download    # Download audio files
+python suno_cli.py stats       # Show statistics
+python suno_cli.py search      # Search collection
+python suno_cli.py playlist    # Create M3U playlist
+python suno_cli.py list        # List all songs
+python suno_cli.py interactive # Interactive menu
+```
+
+## 📁 Project Structure
+
+```
+suno-extractor/
+├── suno_extractor.py      # Core web scraper
+├── suno_downloader.py     # Audio downloader & analyzer
+├── suno_player.py         # Music player
+├── suno_cli.py            # CLI interface
+├── requirements.txt       # Dependencies
+├── README.md              # This file
+├── setup_requirements.md  # Detailed setup guide
+├── suno_songs/            # Extracted metadata (JSON, CSV, MD)
+├── suno_downloads/        # Downloaded audio files
+└── suno_playlists/        # Generated playlists
+```
+
+## 🔧 Configuration
+
+### Browser Setup (Chrome)
+
+```bash
+# Windows
+chrome.exe --remote-debugging-port=9222
+
+# Mac
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222
+
+# Linux
+google-chrome --remote-debugging-port=9222
+```
+
+### Environment Variables (Optional)
+
+```bash
+export SUNO_OUTPUT_DIR="suno_songs"
+export SUNO_DOWNLOAD_DIR="suno_downloads"
+export SUNO_BROWSER="chrome"
+export SUNO_DEBUG_PORT="9222"
+```
+
+## 📊 Output Formats
+
+### JSON Export
+```json
+{
+  "metadata": {
+    "extracted_at": "2025-11-27T00:00:00",
+    "total_songs": 46
+  },
+  "songs": [
+    {
+      "title": "My Song",
+      "artist": "Suno AI",
+      "duration": "3:24",
+      "lyrics": "...",
+      "tags": ["electronic", "v5"],
+      "url": "https://suno.com/song/..."
+    }
+  ]
+}
+```
+
+### M3U Playlist
+```m3u
+#EXTM3U
+#EXTINF:204,Suno AI - My Song
+C:\suno_downloads\My Song.mp3
+```
+
+## 🎮 Player Controls
+
+| Key | Action |
+|-----|--------|
+| `Space` | Play/Pause |
+| `N` | Next track |
+| `P` | Previous track |
+| `+/-` | Volume up/down |
+| `S` | Toggle shuffle |
+| `R` | Toggle repeat |
+| `L` | Show playlist |
+| `Q` | Quit |
+
+## 🛠️ Troubleshooting
+
+### Chrome Connection Failed
+```
+Make sure Chrome is running with: chrome.exe --remote-debugging-port=9222
+```
+
+### No Songs Extracted
+- Ensure you're logged into Suno
+- Navigate to your library page before extraction
+- Check if the page has fully loaded
+
+### Download Failed
+- Some songs may not have audio files available
+- Check your internet connection
+- Verify the song URL is accessible
+
+## 📝 License
+
+MIT License - see LICENSE file for details.
+
+## 🤝 Contributing
+
+Contributions welcome! Please read the contributing guidelines first.
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 🙏 Acknowledgments
+
+- [Suno AI](https://suno.com) - AI music generation platform
+- [Selenium](https://selenium.dev) - Browser automation
+- [Rich](https://rich.readthedocs.io) - Terminal formatting
+- [Mutagen](https://mutagen.readthedocs.io) - Audio metadata
+- [Pygame](https://pygame.org) - Audio playback

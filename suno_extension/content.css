@@ -1,0 +1,38 @@
+/* Suno Extractor content styles */
+
+/* Floating extract button */
+#suno-extractor-btn {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+/* Toast notification */
+.suno-extractor-toast {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 99999;
+  background: #1f2937;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Highlight extracted songs */
+.suno-extractor-highlight {
+  outline: 2px solid #a855f7 !important;
+  outline-offset: 2px;
+}

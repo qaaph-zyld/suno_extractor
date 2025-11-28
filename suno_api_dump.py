@@ -42,9 +42,22 @@ def dump_liked(browser: str = "chrome", port: int = 9222, output_dir: str = "sun
     extractor = SunoExtractor(output_dir=str(out_dir), browser=browser)
     extractor.connect_to_existing_browser(debug_port=port)
 
+    # Ensure we're on suno.com domain to get cookies
+    current_url = extractor.driver.current_url
+    if "suno.com" not in current_url:
+        logger.info("Navigating to suno.com to extract cookies...")
+        extractor.driver.get("https://suno.com/me?liked=true")
+        import time
+        time.sleep(3)
+
     api = SunoAPI()
     cookie = api.extract_cookie_from_browser(extractor.driver)
     logger.info("Extracted cookie string (%d chars)", len(cookie))
+    
+    # Log some cookie names for debugging
+    cookies = extractor.driver.get_cookies()
+    cookie_names = [c['name'] for c in cookies]
+    logger.info("Cookie names: %s", cookie_names[:10] if len(cookie_names) > 10 else cookie_names)
 
     logger.info("Fetching ALL liked songs via API...")
     songs = api.get_all_liked_songs(max_pages=200)

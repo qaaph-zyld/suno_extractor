@@ -148,13 +148,13 @@ class SunoExtractor:
         except Exception as e:
             logger.warning(f"Navigation issue: {e}")
     
-    def scroll_to_load_all(self, scroll_pause: float = 1.2, max_scrolls: int = 600):
+    def scroll_to_load_all(self, max_scrolls: int = 600, scroll_pause: float = 1.2):
         """
         Scroll page to trigger lazy loading of all songs
         
         Args:
-            scroll_pause: Seconds to wait between scrolls
             max_scrolls: Maximum scroll iterations
+            scroll_pause: Seconds to wait between scrolls
         """
         logger.info("Loading all songs via scrolling...")
 
@@ -223,8 +223,8 @@ class SunoExtractor:
 
             if new_height == last_height and new_count == prev_count:
                 no_change_count += 1
-                if no_change_count >= 3:
-                    logger.info("✓ Reached end of page (no new content)")
+                if no_change_count >= 5:
+                    logger.info(f"✓ Reached end of page (no new content after {no_change_count} attempts, found {new_count} songs)")
                     break
             else:
                 no_change_count = 0
@@ -684,20 +684,63 @@ class SunoExtractor:
                 # Parse song page
                 soup = BeautifulSoup(self.driver.page_source, 'lxml')
                 
-                # Extract full lyrics
+                # Extract full lyrics - try multiple strategies
+                lyrics_text = ""
+                
+                # Strategy 1: Look for elements with lyrics-related classes
                 lyrics_selectors = [
                     soup.find('pre', class_=re.compile(r'lyrics', re.I)),
-                    soup.find('div', class_=re.compile(r'lyrics', re.I)),
+                    soup.find('div', class_=re.compile(r'^lyrics$', re.I)),  # Exact match
                     soup.find(attrs={'data-lyrics': True}),
-                    soup.find('div', string=re.compile(r'\[Verse|\[Chorus', re.I))
                 ]
-                
                 for lyrics_elem in lyrics_selectors:
                     if lyrics_elem:
-                        lyrics_text = lyrics_elem.get_text(strip=True)
-                        if len(lyrics_text) > 50:  # Valid lyrics
-                            song['lyrics'] = lyrics_text
-                            break
+                        text = lyrics_elem.get_text(separator='\n', strip=True)
+                        # Filter out navigation text
+                        if len(text) > 50 and 'Home' not in text[:100] and 'Create' not in text[:100]:
+                            if len(text) > len(lyrics_text):
+                                lyrics_text = text
+                
+                # Strategy 2: Find the smallest element containing verse/chorus markers
+                # (to avoid grabbing the whole page)
+                if not lyrics_text:
+                    candidates = []
+                    for elem in soup.find_all(['div', 'pre', 'p', 'span']):
+                        # Skip navigation/header elements
+                        if elem.find_parent(['nav', 'header', 'footer']):
+                            continue
+                        classes = ' '.join(elem.get('class', []))
+                        if re.search(r'nav|menu|header|footer|sidebar', classes, re.I):
+                            continue
+                        
+                        text = elem.get_text(separator='\n', strip=True)
+                        # Must have lyrics markers and reasonable length
+                        if re.search(r'\[Verse|\[Chorus|\[Bridge|\[Intro|\[Outro', text, re.I):
+                            if 50 < len(text) < 5000:  # Reasonable lyrics length
+                                # Skip if it contains navigation keywords
+                                if 'Home' in text[:100] or 'Create' in text[:100] or 'Library' in text[:100]:
+                                    continue
+                                candidates.append((len(text), text, elem))
+                    
+                    # Pick the smallest valid candidate (most specific)
+                    if candidates:
+                        candidates.sort(key=lambda x: x[0])
+                        lyrics_text = candidates[0][1]
+                
+                # Strategy 3: Look for whitespace-pre elements (common for lyrics)
+                if not lyrics_text:
+                    for elem in soup.find_all(style=re.compile(r'white-space.*pre', re.I)):
+                        if elem.find_parent(['nav', 'header', 'footer']):
+                            continue
+                        text = elem.get_text(separator='\n', strip=True)
+                        if 50 < len(text) < 5000:
+                            if 'Home' not in text[:100] and 'Create' not in text[:100]:
+                                if len(text) > len(lyrics_text):
+                                    lyrics_text = text
+                
+                if lyrics_text:
+                    song['lyrics'] = lyrics_text
+                    logger.debug(f"Found lyrics ({len(lyrics_text)} chars) for {song['title']}")
                 
                 # Extract full description
                 desc_selectors = [
@@ -738,12 +781,14 @@ class SunoExtractor:
                     new_tags = [tag.get_text(strip=True) for tag in tag_elements]
                     song['tags'] = list(set(song['tags'] + new_tags))
                 
-                logger.info(f"✓ Extracted details for: {song['title']}")
+                has_lyrics = "with lyrics" if song.get('lyrics') else "no lyrics"
+                logger.info(f"✓ Extracted details for: {song['title']} ({has_lyrics})")
                 
             except Exception as e:
-                logger.error(f"✗ Failed to extract details for {song['title']}: {e}")
+                logger.error(f"✗ Failed to extract details for {song.get('title', 'unknown')}: {e}")
                 continue
         
+        logger.info(f"Detailed extraction complete: {sum(1 for s in songs if s.get('lyrics'))} songs have lyrics")
         return songs
     
     def save_to_markdown(self, songs: List[Dict], filename: str = None) -> Path:

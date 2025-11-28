@@ -336,7 +336,8 @@ class SunoExtractor:
         tab = (tab or '').lower()
         try_urls = []
         if tab == 'likes' or tab == 'liked':
-            try_urls = [f"{base}?tab=likes", base]
+            # Try explicit liked query param first, then tab-based, then base
+            try_urls = [f"{base}?liked=true", f"{base}?tab=likes", base]
             labels = ["Likes", "Liked", "Favorites"]
         elif tab == 'creations' or tab == 'created':
             try_urls = [f"{base}?tab=creations", base]
@@ -372,6 +373,135 @@ class SunoExtractor:
         # Fallback: go to base and return
         self.driver.get(base)
         time.sleep(1.2)
+
+    def _click_next_page(self) -> bool:
+        """Try to click a generic 'next page' control on the library view.
+
+        Returns:
+            True if a click was performed and page content likely changed.
+        """
+        logger.info("Checking for next page button...")
+
+        # Snapshot current state to detect whether page actually changes
+        try:
+            before_url = self.driver.current_url
+            before_links = {
+                el.get_attribute("href")
+                for el in self.driver.find_elements(By.CSS_SELECTOR, "a[href*='/song/']")
+                if el.get_attribute("href")
+            }
+        except Exception:
+            before_url = ""
+            before_links = set()
+
+        candidates = []
+        xpaths = [
+            # Buttons/links with accessible labels
+            "//button[contains(@aria-label, 'Next') or contains(@title, 'Next')]",
+            "//a[contains(@aria-label, 'Next') or contains(@title, 'Next')]",
+            # Common pagination arrows
+            "//button[normalize-space(text())='>' or normalize-space(text())='›' or normalize-space(text())='»']",
+            "//a[normalize-space(text())='>' or normalize-space(text())='›' or normalize-space(text())='»']",
+            # data-testid based selectors
+            "//*[@data-testid='pagination-next' or contains(@data-testid, 'next-page')]",
+        ]
+
+        for xp in xpaths:
+            try:
+                els = self.driver.find_elements(By.XPATH, xp)
+                if els:
+                    candidates.extend(els)
+            except Exception:
+                continue
+
+        clicked = False
+        for el in candidates:
+            try:
+                if not el.is_displayed() or not el.is_enabled():
+                    continue
+                # Scroll element into view and click
+                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", el)
+                time.sleep(0.3)
+                el.click()
+                clicked = True
+                logger.info("Clicked next page button")
+                break
+            except Exception:
+                continue
+
+        if not clicked:
+            logger.info("No next page control found; assuming last page")
+            return False
+
+        # Wait for new page content
+        time.sleep(3.0)
+        try:
+            after_url = self.driver.current_url
+            after_links = {
+                el.get_attribute("href")
+                for el in self.driver.find_elements(By.CSS_SELECTOR, "a[href*='/song/']")
+                if el.get_attribute("href")
+            }
+        except Exception:
+            after_url = before_url
+            after_links = before_links
+
+        # Detect whether we actually navigated to a new page of songs.
+        # In the current SPA, URL and count may remain the same across pages,
+        # so we compare the set of hrefs instead of just the count.
+        if after_url == before_url and after_links == before_links:
+            logger.info("Next page click did not change song list; assuming last page")
+            return False
+
+        new_links = after_links - before_links
+        logger.info(f"Next page appears to have {len(new_links)} new song links")
+        return True
+
+    def _extract_all_pages_for_tab(self, tab: str, max_pages: int = 50) -> List[Dict]:
+        """Extract songs from all paginated pages for the given tab.
+
+        This will:
+        - Scroll within each page to load all rows
+        - Extract all visible songs on that page
+        - Click the pagination "next" arrow (if present) and repeat
+        """
+        all_songs: List[Dict] = []
+        page_index = 1
+
+        while page_index <= max_pages:
+            logger.info(f"Tab '{tab}': extracting page {page_index}...")
+
+            # Ensure current page is fully loaded
+            self.scroll_to_load_all()
+
+            before_urls = set(self.extracted_urls)
+            chunk = self.extract_all_songs()
+
+            if not chunk:
+                logger.info("No songs found on this page; stopping pagination")
+                break
+
+            for s in chunk:
+                s['source_tab'] = tab
+            all_songs.extend(chunk)
+
+            logger.info(
+                f"Page {page_index}: {len(chunk)} songs, "
+                f"total unique so far: {len(self.extracted_urls)}"
+            )
+
+            # Try to go to next page; stop if no navigation or no new songs
+            if not self._click_next_page():
+                break
+
+            page_index += 1
+
+            # Safety: if no new URLs were added on last page, break to avoid loops
+            if before_urls == self.extracted_urls:
+                logger.info("No new songs detected after page change; stopping pagination")
+                break
+
+        return all_songs
     
     def _parse_song_element(self, element, idx: int) -> Optional[Dict]:
         """
@@ -801,14 +931,9 @@ class SunoExtractor:
                     logger.info(f"Navigating to tab: {tab}")
                     # Navigate to the specific tab
                     self.navigate_to_tab(tab)
-                    
-                    # Scroll to load all content
-                    self.scroll_to_load_all()
-                    
-                    # Extract basic song data
-                    chunk = self.extract_all_songs()
-                    for s in chunk:
-                        s['source_tab'] = tab
+
+                    # Extract across all paginated pages for this tab
+                    chunk = self._extract_all_pages_for_tab(tab)
                     songs.extend(chunk)
             else:
                 # Fallback: if tabs provided but yielded nothing, try current /me view

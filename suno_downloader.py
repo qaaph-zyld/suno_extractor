@@ -24,6 +24,13 @@ try:
 except ImportError:
     MUTAGEN_AVAILABLE = False
 
+# Audio conversion
+try:
+    from pydub import AudioSegment
+    PYDUB_AVAILABLE = True
+except ImportError:
+    PYDUB_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -122,43 +129,76 @@ class SunoDownloader:
             logger.warning(f"No audio URLs found for: {song.get('title', song_id)}")
             return None
         
-        # Select best available format
-        url = audio_urls.get(format) or next(iter(audio_urls.values()))
-        actual_format = format if format in audio_urls else list(audio_urls.keys())[0]
-        
         # Generate safe filename
         title = song.get('title', song_id)
         safe_title = re.sub(r'[<>:"/\\|?*]', '_', title)[:100]
-        filename = f"{safe_title}.{actual_format}"
-        filepath = self.download_dir / filename
         
-        # Skip if already exists
-        if filepath.exists():
-            logger.info(f"Already exists: {filename}")
-            return filepath
+        # For WAV: check if WAV already exists, otherwise download source and convert
+        want_wav = format.lower() == 'wav'
+        wav_filename = f"{safe_title}.wav"
+        wav_filepath = self.download_dir / wav_filename
         
-        # Download file
+        if want_wav and wav_filepath.exists():
+            logger.info(f"Already exists: {wav_filename}")
+            return wav_filepath
+        
+        # Select best available source format (prefer mp3 for conversion)
+        source_format = 'mp3' if 'mp3' in audio_urls else list(audio_urls.keys())[0]
+        url = audio_urls[source_format]
+        
+        # If not wanting WAV, use requested format if available
+        if not want_wav:
+            source_format = format if format in audio_urls else source_format
+            url = audio_urls.get(format, url)
+        
+        source_filename = f"{safe_title}.{source_format}"
+        source_filepath = self.download_dir / source_filename
+        
+        # Check if source already exists (for non-WAV requests)
+        if not want_wav and source_filepath.exists():
+            logger.info(f"Already exists: {source_filename}")
+            return source_filepath
+        
+        # Download source file
         try:
-            logger.info(f"Downloading: {title}")
-            response = self.session.get(url, stream=True, timeout=60)
-            response.raise_for_status()
+            # Only download if source doesn't exist
+            if not source_filepath.exists():
+                logger.info(f"Downloading: {title}")
+                response = self.session.get(url, stream=True, timeout=60)
+                response.raise_for_status()
+                
+                with open(source_filepath, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                
+                logger.info(f"Downloaded: {source_filename}")
+                
+                # Add metadata if requested
+                if add_metadata and MUTAGEN_AVAILABLE:
+                    self.add_metadata(source_filepath, song)
             
-            with open(filepath, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
+            # Convert to WAV if requested
+            if want_wav:
+                if not PYDUB_AVAILABLE:
+                    logger.warning("pydub not available - cannot convert to WAV, keeping source format")
+                    return source_filepath
+                
+                logger.info(f"Converting to WAV: {title}")
+                try:
+                    audio = AudioSegment.from_file(str(source_filepath), format=source_format)
+                    audio.export(str(wav_filepath), format='wav')
+                    logger.info(f"Converted: {wav_filename}")
+                    return wav_filepath
+                except Exception as conv_err:
+                    logger.error(f"WAV conversion failed: {conv_err}")
+                    return source_filepath
             
-            logger.info(f"✓ Downloaded: {filename}")
-            
-            # Add metadata if requested
-            if add_metadata and MUTAGEN_AVAILABLE:
-                self.add_metadata(filepath, song)
-            
-            return filepath
+            return source_filepath
             
         except Exception as e:
-            logger.error(f"✗ Failed to download {title}: {e}")
-            if filepath.exists():
-                filepath.unlink()
+            logger.error(f"Failed to download {title}: {e}")
+            if source_filepath.exists():
+                source_filepath.unlink()
             return None
     
     def add_metadata(self, filepath: Path, song: Dict) -> bool:

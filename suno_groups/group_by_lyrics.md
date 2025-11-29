@@ -1,9 +1,9 @@
 # Suno Library – Grouped by Lyrics
 
-Generated: 2025-11-28T23:05:30.006329
+Generated: 2025-11-29T01:25:52.965963
 
 Total lyric-bearing songs: 14
-Unique lyric texts: 5
+Unique lyric texts: 6
 
 ## Lyrics group (x4)
 
@@ -16,14 +16,13 @@ Unique lyric texts: 5
 
 ---
 
-## Lyrics group (x4)
+## Lyrics group (x3)
 
-**Snippet:** '[Intro] Jesi ti,Pope, kadio matru???..... ([Laughter in background] - hahaha) ([Lighter flick] - chk) ([female adlib]...'
+**Snippet:** '[Intro] (Sve, sve ove godine sa tobom ja) [room_verb – wide, distant, filtered, low in mix] (Ja sam u svađi sam sa so...'
 
-- Kko te tera_Hardcore_Pop_2  · 2:26  · [https://suno.com/song/c0c7ddfe-e47f-44a5-b2d5-16492fce14d3](https://suno.com/song/c0c7ddfe-e47f-44a5-b2d5-16492fce14d3)
-- Kko te tera_Hardcore_Pop_2  · 2:14  · [https://suno.com/song/0b371521-b328-4c15-a48d-1fef130f67f3](https://suno.com/song/0b371521-b328-4c15-a48d-1fef130f67f3)
-- Kko te tera_Hardcore_Pop_1  · 1:44  · [https://suno.com/song/1390bd59-8bb7-4af0-9e10-3156c58d7e86](https://suno.com/song/1390bd59-8bb7-4af0-9e10-3156c58d7e86)
-- Kko te tera_Hardcore_Pop_1  · 2:08  · [https://suno.com/song/f844c08f-7b55-4d64-9e9b-b5223d41b8be](https://suno.com/song/f844c08f-7b55-4d64-9e9b-b5223d41b8be)
+- Shantelijah x Ljubav Ohola- Hardcore_Pop_3  · 3:49  · [https://suno.com/song/6789635a-4c5f-4da9-87f6-82a071332637](https://suno.com/song/6789635a-4c5f-4da9-87f6-82a071332637)
+- NE SALJI MI PISMO_dr_Khans  · 4:12  · [https://suno.com/song/49ee6adf-09f0-4c06-968f-e9fe133a1604](https://suno.com/song/49ee6adf-09f0-4c06-968f-e9fe133a1604)
+- NE SALJI MI PISMO_dr_Khans  · 1:24  · [https://suno.com/song/b6cbdd0e-e79b-4f3e-b8d3-15698aa49925](https://suno.com/song/b6cbdd0e-e79b-4f3e-b8d3-15698aa49925)
 
 ---
 
@@ -51,6 +50,14 @@ Unique lyric texts: 5
 
 - Takking the next plane_Hardcore_Pop_1  · 3:34  · [https://suno.com/song/d646791c-46ce-4ab7-a532-d15fe3585e9e](https://suno.com/song/d646791c-46ce-4ab7-a532-d15fe3585e9e)
 - Takking the next plane_Hardcore_Pop_1  · 3:56  · [https://suno.com/song/c606b2f0-c690-4eff-8ca1-410fdce5642d](https://suno.com/song/c606b2f0-c690-4eff-8ca1-410fdce5642d)
+
+---
+
+## Lyrics group (x1)
+
+**Snippet:** '[Intro] Jesi ti,Pope, kadio matru???..... ([Laughter in background] - hahaha) ([Lighter flick] - chk) ([female adlib]...'
+
+- Kko te tera_Hardcore_Pop_2  · 2:26  · [https://suno.com/song/c0c7ddfe-e47f-44a5-b2d5-16492fce14d3](https://suno.com/song/c0c7ddfe-e47f-44a5-b2d5-16492fce14d3)
 
 ---
 

@@ -80,11 +80,15 @@ def cmd_extract(args):
         tabs = args.tabs.split(',') if args.tabs else ['creations']
         formats = args.formats.split(',') if args.formats else ['md', 'json', 'csv']
         
+        # Determine incremental mode (default is incremental, --full overrides)
+        incremental = not getattr(args, 'full', False)
+        
         output_files = extractor.run_extraction(
             extract_details=not args.fast,
             save_formats=formats,
             tabs=tabs,
-            exclude_disliked=True
+            exclude_disliked=True,
+            incremental=incremental
         )
         
         if RICH_AVAILABLE:
@@ -449,6 +453,8 @@ Examples:
                                help='Skip detailed extraction')
     extract_parser.add_argument('--skip-db', action='store_true',
                                help='Skip automatic database import')
+    extract_parser.add_argument('--full', action='store_true',
+                               help='Full extraction (ignore existing songs in database)')
     
     # Download command
     download_parser = subparsers.add_parser('download', help='Download audio files')

@@ -26,7 +26,15 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from bs4 import BeautifulSoup
 
 # Shared utilities
-from suno_utils import ExtractionError
+from suno_utils import ExtractionError, extract_song_id
+
+# Core database (optional, for incremental extraction)
+try:
+    from suno_core import get_database
+    DATABASE_AVAILABLE = True
+except ImportError:
+    DATABASE_AVAILABLE = False
+    get_database = None
 
 # Optional: auto-manage drivers
 try:
@@ -71,6 +79,43 @@ class SunoExtractor:
         self.driver = None
         self.wait = None
         self.extracted_urls: Set[str] = set()
+        self._existing_song_ids: Set[str] = set()
+    
+    def load_existing_songs(self) -> int:
+        """
+        Load existing song IDs from database for incremental extraction.
+        
+        Returns:
+            Number of existing songs loaded
+        """
+        if not DATABASE_AVAILABLE or not get_database:
+            logger.info("Database not available, will extract all songs")
+            return 0
+        
+        try:
+            db = get_database()
+            all_songs = db.get_all_songs()
+            self._existing_song_ids = {s.get('id', '') for s in all_songs if s.get('id')}
+            logger.info(f"Loaded {len(self._existing_song_ids)} existing songs from database")
+            return len(self._existing_song_ids)
+        except Exception as e:
+            logger.warning(f"Could not load existing songs: {e}")
+            return 0
+    
+    def is_new_song(self, url: str) -> bool:
+        """
+        Check if a song URL is new (not in database).
+        
+        Args:
+            url: Song URL
+            
+        Returns:
+            True if song is new, False if already exists
+        """
+        song_id = extract_song_id(url)
+        if not song_id:
+            return True  # Assume new if can't extract ID
+        return song_id not in self._existing_song_ids
         
     def connect_to_existing_browser(self, debug_port: int = None) -> None:
         """
@@ -1003,13 +1048,17 @@ class SunoExtractor:
     def run_extraction(self, extract_details: bool = True, 
                       save_formats: List[str] = None,
                       tabs: List[str] = None,
-                      exclude_disliked: bool = True) -> Dict[str, Path]:
+                      exclude_disliked: bool = True,
+                      incremental: bool = True) -> Dict[str, Path]:
         """
         Execute complete extraction workflow
         
         Args:
             extract_details: Visit each song for full details
             save_formats: List of formats ['md', 'json', 'csv']
+            tabs: Tabs to extract from ['creations', 'likes']
+            exclude_disliked: Filter out disliked songs
+            incremental: Only extract new songs not in database (default True)
             
         Returns:
             Dictionary mapping format to filepath
@@ -1020,6 +1069,12 @@ class SunoExtractor:
         output_files = {}
         
         try:
+            # Load existing songs for incremental mode
+            if incremental:
+                existing_count = self.load_existing_songs()
+                if existing_count > 0:
+                    logger.info(f"Incremental mode: {existing_count} songs already in database")
+            
             # If tabs not specified, restrict to user-owned views to avoid feed/recommendations
             if tabs is None:
                 tabs = ['creations']
@@ -1053,6 +1108,17 @@ class SunoExtractor:
                 before = len(songs)
                 songs = [s for s in songs if not s.get('disliked')]
                 logger.info(f"Filtered disliked: {before - len(songs)} removed")
+            
+            # Filter to only new songs in incremental mode
+            if incremental and self._existing_song_ids:
+                before = len(songs)
+                songs = [s for s in songs if self.is_new_song(s.get('url', ''))]
+                skipped = before - len(songs)
+                logger.info(f"Incremental mode: {skipped} existing songs skipped, {len(songs)} new songs to process")
+                
+                if not songs:
+                    logger.info("No new songs to extract. All songs already in database.")
+                    return output_files
 
             # Step 4: Extract detailed information
             if extract_details:

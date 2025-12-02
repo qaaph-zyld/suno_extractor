@@ -12,6 +12,9 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
 
+# Shared utilities
+from suno_utils import safe_filename
+
 logger = logging.getLogger(__name__)
 
 # PlexAPI import
@@ -56,8 +59,8 @@ class PlexMusicOrganizer:
             album_name = f"Suno Collection {datetime.now().strftime('%Y-%m')}"
         
         # Create folder structure
-        artist_dir = self.plex_music_dir / self._safe_filename(artist_name)
-        album_dir = artist_dir / self._safe_filename(album_name)
+        artist_dir = self.plex_music_dir / safe_filename(artist_name)
+        album_dir = artist_dir / safe_filename(album_name)
         album_dir.mkdir(parents=True, exist_ok=True)
         
         count = 0
@@ -72,7 +75,7 @@ class PlexMusicOrganizer:
                 # Create track filename with number
                 title = song.get('title', f'Track {i}')
                 ext = src_path.suffix
-                track_name = f"{i:02d} - {self._safe_filename(title)}{ext}"
+                track_name = f"{i:02d} - {safe_filename(title)}{ext}"
                 
                 dest_path = album_dir / track_name
                 
@@ -171,7 +174,7 @@ class PlexMusicOrganizer:
         # Try to find by title
         title = song.get('title', '')
         if title:
-            safe_title = self._safe_filename(title)
+            safe_title = safe_filename(title)
             for ext in ['.mp3', '.m4a', '.wav']:
                 path = self.source_dir / f"{safe_title}{ext}"
                 if path.exists():
@@ -202,12 +205,6 @@ class PlexMusicOrganizer:
             dest = album_dir / 'cover.jpg'
             shutil.copy2(cover_path, dest)
     
-    def _safe_filename(self, name: str) -> str:
-        """Convert to safe filename"""
-        import re
-        safe = re.sub(r'[<>:"/\\|?*]', '_', name)
-        return safe[:100].strip()
-
 
 class PlexServerIntegration:
     """

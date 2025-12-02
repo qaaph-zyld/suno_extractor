@@ -15,6 +15,9 @@ from typing import List, Dict, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 
+# Shared utilities
+from suno_utils import parse_duration, extract_song_id, safe_filename, DownloadError
+
 # Audio metadata handling
 try:
     from mutagen.mp3 import MP3
@@ -58,18 +61,6 @@ class SunoDownloader:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
         
-    def extract_song_id(self, url: str) -> Optional[str]:
-        """Extract song ID from Suno URL"""
-        patterns = [
-            r'/song/([a-f0-9-]{36})',
-            r'([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})'
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, url)
-            if match:
-                return match.group(1)
-        return None
-    
     def get_audio_urls(self, song_id: str) -> Dict[str, str]:
         """
         Get direct audio URLs for a song
@@ -118,7 +109,7 @@ class SunoDownloader:
         Returns:
             Path to downloaded file or None
         """
-        song_id = self.extract_song_id(song.get('url', ''))
+        song_id = extract_song_id(song.get('url', ''))
         if not song_id:
             logger.error(f"Could not extract song ID from URL: {song.get('url')}")
             return None
@@ -412,7 +403,7 @@ class PlaylistManager:
             for song in songs:
                 title = song.get('title', 'Unknown')
                 artist = song.get('artist', 'Suno AI')
-                duration = self._parse_duration(song.get('duration', '0:00'))
+                duration = parse_duration(song.get('duration', '0:00'))
                 
                 # Determine file path
                 if 'path' in song:
@@ -439,18 +430,6 @@ class PlaylistManager:
         playlist_name = name or Path(json_path).stem
         
         return self.create_m3u(songs, playlist_name, audio_dir)
-    
-    def _parse_duration(self, duration_str: str) -> int:
-        """Parse duration string (MM:SS) to seconds"""
-        try:
-            parts = duration_str.split(':')
-            if len(parts) == 2:
-                return int(parts[0]) * 60 + int(parts[1])
-            elif len(parts) == 3:
-                return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-        except Exception:
-            pass
-        return 0
 
 
 class CollectionAnalyzer:
@@ -523,7 +502,7 @@ class CollectionAnalyzer:
         """Filter songs by duration range"""
         results = []
         for song in self.songs:
-            duration = self._parse_duration(song.get('duration', '0:00'))
+            duration = parse_duration(song.get('duration', '0:00'))
             if min_seconds <= duration <= max_seconds:
                 results.append(song)
         return results
@@ -544,7 +523,7 @@ class CollectionAnalyzer:
         
         for song in self.songs:
             # Duration
-            duration = self._parse_duration(song.get('duration', '0:00'))
+            duration = parse_duration(song.get('duration', '0:00'))
             stats['total_duration_seconds'] += duration
             
             # Content flags
@@ -573,18 +552,6 @@ class CollectionAnalyzer:
         stats['total_duration_formatted'] = f"{hours}h {mins}m {total_secs}s"
         
         return stats
-    
-    def _parse_duration(self, duration_str: str) -> int:
-        """Parse duration string to seconds"""
-        try:
-            parts = duration_str.split(':')
-            if len(parts) == 2:
-                return int(parts[0]) * 60 + int(parts[1])
-            elif len(parts) == 3:
-                return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-        except Exception:
-            pass
-        return 0
 
 
 def main():

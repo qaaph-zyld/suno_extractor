@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import List, Dict, Optional
 import random
 
+# Shared utilities
+from suno_utils import safe_filename, parse_duration
+
 # Audio playback libraries
 try:
     import pygame
@@ -243,7 +246,7 @@ class SunoPlayer:
         # Match songs to local files
         for song in songs:
             title = song.get('title', '')
-            safe_title = self._safe_filename(title)
+            safe_title = safe_filename(title)
             
             # Check for audio file
             for ext in ['.mp3', '.m4a', '.wav']:
@@ -270,12 +273,6 @@ class SunoPlayer:
                 self.playlist.append(song)
         
         return len(self.playlist)
-    
-    def _safe_filename(self, title: str) -> str:
-        """Convert title to safe filename"""
-        import re
-        safe = re.sub(r'[<>:"/\\|?*]', '_', title)
-        return safe[:100]
     
     def play(self, index: int = None):
         """Play a song by index"""

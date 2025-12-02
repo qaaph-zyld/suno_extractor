@@ -14,6 +14,16 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 from contextlib import contextmanager
 
+# Shared utilities
+from suno_utils import (
+    parse_duration,
+    extract_song_id,
+    safe_filename,
+    SunoError,
+    DatabaseError,
+    ConfigError
+)
+
 # YAML configuration
 try:
     import yaml
@@ -281,15 +291,9 @@ class SunoDatabase:
         finally:
             conn.close()
     
-    def extract_song_id(self, url: str) -> Optional[str]:
-        """Extract song ID from URL"""
-        import re
-        match = re.search(r'/song/([a-f0-9-]{36})', url)
-        return match.group(1) if match else None
-    
     def add_song(self, song: Dict) -> bool:
         """Add or update a song in the database"""
-        song_id = self.extract_song_id(song.get('url', ''))
+        song_id = extract_song_id(song.get('url', ''))
         if not song_id:
             return False
         
@@ -297,7 +301,7 @@ class SunoDatabase:
             cursor = conn.cursor()
             
             # Parse duration to seconds
-            duration_seconds = self._parse_duration(song.get('duration', ''))
+            duration_seconds = parse_duration(song.get('duration', ''))
             
             # Determine suno version from tags
             suno_version = None
@@ -707,18 +711,6 @@ class SunoDatabase:
             stats['top_tags'] = {row['tag']: row['count'] for row in cursor.fetchall()}
             
             return stats
-    
-    def _parse_duration(self, duration_str: str) -> int:
-        """Parse duration string to seconds"""
-        try:
-            parts = duration_str.split(':')
-            if len(parts) == 2:
-                return int(parts[0]) * 60 + int(parts[1])
-            elif len(parts) == 3:
-                return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-        except Exception:
-            pass
-        return 0
     
     def export_to_json(self, output_path: str) -> int:
         """Export database to JSON"""

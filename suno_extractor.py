@@ -25,6 +25,9 @@ from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from bs4 import BeautifulSoup
 
+# Shared utilities
+from suno_utils import ExtractionError
+
 # Optional: auto-manage drivers
 try:
     from webdriver_manager.chrome import ChromeDriverManager
@@ -94,18 +97,21 @@ class SunoExtractor:
             except Exception as e:
                 logger.error(f"Failed to connect to Chrome: {e}")
                 logger.info(f"Start Chrome with: google-chrome --remote-debugging-port={debug_port}")
-                raise
+                raise ExtractionError(
+                    f"Cannot connect to Chrome on port {debug_port}. "
+                    f"Start Chrome with: chrome --remote-debugging-port={debug_port}"
+                ) from e
                 
         elif self.browser_type == "firefox":
             # Selenium cannot reliably attach to an already-running Firefox
             # session via marionette. Recommend using Chrome with debuggerAddress.
             logger.error("Attaching to an existing Firefox session is not supported reliably. "
                          "Please use Chrome with --remote-debugging-port.")
-            raise NotImplementedError(
+            raise ExtractionError(
                 "Firefox attach unsupported. Launch Chrome with --remote-debugging-port and set browser='chrome'."
             )
         else:
-            raise ValueError(f"Unsupported browser: {self.browser_type}")
+            raise ExtractionError(f"Unsupported browser: {self.browser_type}")
     
     def navigate_to_liked_songs(self):
         """Navigate to liked songs page in existing session"""
@@ -1031,9 +1037,12 @@ class SunoExtractor:
             
             return output_files
             
+        except ExtractionError:
+            # Re-raise our custom exceptions as-is
+            raise
         except Exception as e:
             logger.error(f"✗ Extraction failed: {e}", exc_info=True)
-            raise
+            raise ExtractionError(f"Extraction failed: {e}") from e
 
 
 def main():

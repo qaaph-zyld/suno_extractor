@@ -32,8 +32,10 @@ except ImportError:
 try:
     from suno_extractor import SunoExtractor
     from suno_downloader import SunoDownloader, PlaylistManager, CollectionAnalyzer
+    from suno_utils import SunoError, ExtractionError, DownloadError
 except ImportError as e:
     print(f"Import error: {e}")
+    SunoError = Exception  # Fallback
 
 
 console = Console() if RICH_AVAILABLE else None
@@ -92,11 +94,22 @@ def cmd_extract(args):
             for fmt, path in output_files.items():
                 print(f"  {fmt}: {path}")
                 
-    except Exception as e:
+    except SunoError as e:
+        # Handle our custom exceptions with user-friendly messages
         if RICH_AVAILABLE:
-            console.print(f"[bold red]✗ Error: {e}[/bold red]")
+            console.print(f"\n[bold red]✗ Extraction Error[/bold red]")
+            console.print(f"[red]{e}[/red]")
+            console.print("\n[dim]Tip: Make sure Chrome is running with --remote-debugging-port[/dim]")
         else:
-            print(f"Error: {e}")
+            print(f"\nExtraction Error: {e}")
+            print("Tip: Make sure Chrome is running with --remote-debugging-port")
+        sys.exit(1)
+    except Exception as e:
+        # Handle unexpected errors
+        if RICH_AVAILABLE:
+            console.print(f"[bold red]✗ Unexpected Error: {e}[/bold red]")
+        else:
+            print(f"Unexpected Error: {e}")
         sys.exit(1)
 
 

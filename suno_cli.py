@@ -33,9 +33,11 @@ try:
     from suno_extractor import SunoExtractor
     from suno_downloader import SunoDownloader, PlaylistManager, CollectionAnalyzer
     from suno_utils import SunoError, ExtractionError, DownloadError
+    from suno_core import get_database
 except ImportError as e:
     print(f"Import error: {e}")
     SunoError = Exception  # Fallback
+    get_database = None
 
 
 console = Console() if RICH_AVAILABLE else None
@@ -93,6 +95,22 @@ def cmd_extract(args):
             print("\nExtraction Complete!")
             for fmt, path in output_files.items():
                 print(f"  {fmt}: {path}")
+        
+        # Auto-import to database unless --skip-db is set
+        if not getattr(args, 'skip_db', False) and 'json' in output_files and get_database:
+            try:
+                db = get_database()
+                json_path = str(output_files['json'])
+                count = db.import_from_json(json_path)
+                if RICH_AVAILABLE:
+                    console.print(f"\n[bold cyan]🗃  Imported {count} songs to database[/bold cyan]")
+                else:
+                    print(f"\nImported {count} songs to database")
+            except Exception as e:
+                if RICH_AVAILABLE:
+                    console.print(f"[yellow]Warning: Could not import to database: {e}[/yellow]")
+                else:
+                    print(f"Warning: Could not import to database: {e}")
                 
     except SunoError as e:
         # Handle our custom exceptions with user-friendly messages
@@ -429,6 +447,8 @@ Examples:
                                help='Comma-separated formats: md,json,csv')
     extract_parser.add_argument('--fast', action='store_true',
                                help='Skip detailed extraction')
+    extract_parser.add_argument('--skip-db', action='store_true',
+                               help='Skip automatic database import')
     
     # Download command
     download_parser = subparsers.add_parser('download', help='Download audio files')

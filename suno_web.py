@@ -614,6 +614,7 @@ def render(template_name, **kwargs):
 # Routes
 @app.route('/')
 def home():
+    """Render home page with stats and recent songs."""
     db = get_database()
     stats = db.get_statistics()
     recent = db.get_recently_played(12) or db.get_all_songs(12)
@@ -622,6 +623,7 @@ def home():
 
 @app.route('/songs')
 def songs():
+    """Render paginated songs list with filtering and sorting."""
     db = get_database()
     
     # Get pagination parameters
@@ -652,6 +654,7 @@ def songs():
 
 @app.route('/stats')
 def stats():
+    """Render library statistics page."""
     db = get_database()
     stats = db.get_statistics()
     return render('stats', title='Statistics', stats=stats)
@@ -659,11 +662,13 @@ def stats():
 
 @app.route('/settings')
 def settings():
+    """Render settings page."""
     return render('settings', title='Settings')
 
 
 @app.route('/search')
 def search():
+    """Search songs by query and render results."""
     query = request.args.get('q', '')
     db = get_database()
     
@@ -678,6 +683,7 @@ def search():
 # API Routes
 @app.route('/api/songs')
 def api_songs():
+    """API: Get all songs as JSON."""
     db = get_database()
     songs = db.get_all_songs()
     return jsonify(songs)
@@ -685,6 +691,7 @@ def api_songs():
 
 @app.route('/api/song/<song_id>')
 def api_song(song_id):
+    """API: Get single song by ID."""
     db = get_database()
     song = db.get_song(song_id)
     if song:
@@ -694,6 +701,7 @@ def api_song(song_id):
 
 @app.route('/api/rate/<song_id>', methods=['POST'])
 def api_rate(song_id):
+    """API: Rate a song (1-5 stars)."""
     data = request.get_json()
     rating = data.get('rating', 0)
     
@@ -705,6 +713,7 @@ def api_rate(song_id):
 
 @app.route('/api/play/<song_id>', methods=['POST'])
 def api_play(song_id):
+    """API: Record a song play."""
     db = get_database()
     db.record_play(song_id)
     return jsonify({'success': True})
@@ -712,12 +721,14 @@ def api_play(song_id):
 
 @app.route('/api/stats')
 def api_stats():
+    """API: Get library statistics."""
     db = get_database()
     return jsonify(db.get_statistics())
 
 
 @app.route('/api/export')
 def api_export():
+    """API: Export library to JSON file."""
     db = get_database()
     output_path = "export_library.json"
     db.export_to_json(output_path)
@@ -756,6 +767,7 @@ def api_export_spotify():
 
 @app.route('/api/backup')
 def api_backup():
+    """API: Create database backup."""
     db = get_database()
     backup_path = db.backup()
     return jsonify({'success': True, 'path': str(backup_path)})
@@ -763,6 +775,7 @@ def api_backup():
 
 @app.route('/api/import', methods=['POST'])
 def api_import():
+    """API: Import songs from uploaded JSON file."""
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     

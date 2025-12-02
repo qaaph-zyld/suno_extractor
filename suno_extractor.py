@@ -645,6 +645,152 @@ class SunoExtractor:
         
         return song_data
     
+    def _extract_lyrics(self, soup: Any) -> str:
+        """
+        Extract lyrics from song page using multiple strategies.
+        
+        Args:
+            soup: BeautifulSoup object of song page
+            
+        Returns:
+            Lyrics text or empty string
+        """
+        lyrics_text = ""
+        
+        # Strategy 1: Look for elements with lyrics-related classes
+        lyrics_selectors = [
+            soup.find('pre', class_=re.compile(r'lyrics', re.I)),
+            soup.find('div', class_=re.compile(r'^lyrics$', re.I)),
+            soup.find(attrs={'data-lyrics': True}),
+        ]
+        for lyrics_elem in lyrics_selectors:
+            if lyrics_elem:
+                text = lyrics_elem.get_text(separator='\n', strip=True)
+                if len(text) > 50 and 'Home' not in text[:100] and 'Create' not in text[:100]:
+                    if len(text) > len(lyrics_text):
+                        lyrics_text = text
+        
+        # Strategy 2: Find elements containing verse/chorus markers
+        if not lyrics_text:
+            candidates = []
+            for elem in soup.find_all(['div', 'pre', 'p', 'span']):
+                if elem.find_parent(['nav', 'header', 'footer']):
+                    continue
+                classes = ' '.join(elem.get('class', []))
+                if re.search(r'nav|menu|header|footer|sidebar', classes, re.I):
+                    continue
+                
+                text = elem.get_text(separator='\n', strip=True)
+                if re.search(r'\[Verse|\[Chorus|\[Bridge|\[Intro|\[Outro', text, re.I):
+                    if 50 < len(text) < 5000:
+                        if 'Home' not in text[:100] and 'Create' not in text[:100] and 'Library' not in text[:100]:
+                            candidates.append((len(text), text))
+            
+            if candidates:
+                candidates.sort(key=lambda x: x[0])
+                lyrics_text = candidates[0][1]
+        
+        # Strategy 3: Look for whitespace-pre elements
+        if not lyrics_text:
+            for elem in soup.find_all(style=re.compile(r'white-space.*pre', re.I)):
+                if elem.find_parent(['nav', 'header', 'footer']):
+                    continue
+                text = elem.get_text(separator='\n', strip=True)
+                if 50 < len(text) < 5000:
+                    if 'Home' not in text[:100] and 'Create' not in text[:100]:
+                        if len(text) > len(lyrics_text):
+                            lyrics_text = text
+        
+        return lyrics_text
+    
+    def _extract_description(self, soup: Any, current_desc: str) -> str:
+        """
+        Extract description from song page.
+        
+        Args:
+            soup: BeautifulSoup object
+            current_desc: Current description to compare against
+            
+        Returns:
+            Best description found
+        """
+        desc_selectors = [
+            soup.find('div', class_=re.compile(r'description|prompt', re.I)),
+            soup.find('p', class_=re.compile(r'description', re.I)),
+            soup.find(attrs={'data-description': True})
+        ]
+        
+        for desc_elem in desc_selectors:
+            if desc_elem:
+                desc_text = desc_elem.get_text(strip=True)
+                if len(desc_text) > len(current_desc):
+                    return desc_text
+        
+        return current_desc
+    
+    def _extract_metadata(self, soup: Any, song: Dict[str, Any]) -> None:
+        """
+        Extract metadata (duration, plays, likes, date) from song page.
+        Updates song dict in-place.
+        
+        Args:
+            soup: BeautifulSoup object
+            song: Song dictionary to update
+        """
+        meta_elements = soup.find_all(['span', 'div', 'p'], 
+                                     class_=re.compile(r'meta|info|stat', re.I))
+        
+        for meta in meta_elements:
+            text = meta.get_text(strip=True).lower()
+            
+            if not song.get('duration') and re.search(r'\d:\d{2}', text):
+                song['duration'] = meta.get_text(strip=True)
+            
+            if not song.get('plays') and 'play' in text:
+                song['plays'] = meta.get_text(strip=True)
+            
+            if not song.get('likes') and 'like' in text:
+                song['likes'] = meta.get_text(strip=True)
+            
+            if not song.get('created_at') and ('ago' in text or 'created' in text):
+                song['created_at'] = meta.get_text(strip=True)
+    
+    def _extract_tags(self, soup: Any, existing_tags: List[str]) -> List[str]:
+        """
+        Extract tags from song page.
+        
+        Args:
+            soup: BeautifulSoup object
+            existing_tags: Current tags list
+            
+        Returns:
+            Combined unique tags list
+        """
+        tag_elements = soup.find_all(class_=re.compile(r'tag|genre|style|badge', re.I))
+        if tag_elements:
+            new_tags = [tag.get_text(strip=True) for tag in tag_elements]
+            return list(set(existing_tags + new_tags))
+        return existing_tags
+    
+    def _click_lyrics_tab(self) -> None:
+        """Try to click lyrics tab or expand button to reveal lyrics."""
+        lyrics_click_xpaths = [
+            "//button[contains(., 'Lyrics')]",
+            "//*[@role='tab'][contains(., 'Lyrics')]",
+            "//div[contains(@class, 'tab')][contains(., 'Lyrics')]",
+            "//a[contains(., 'Lyrics')]",
+            "//button[contains(., 'Show more')]"
+        ]
+        for xp in lyrics_click_xpaths:
+            try:
+                el = self.driver.find_element(By.XPATH, xp)
+                if el.is_displayed() and el.is_enabled():
+                    el.click()
+                    time.sleep(0.6)
+                    break
+            except Exception:
+                continue
+    
     def extract_detailed_info(self, songs: List[Dict[str, Any]], delay: float = 1.5) -> List[Dict[str, Any]]:
         """
         Visit each song page to extract full lyrics and details
@@ -666,126 +812,29 @@ class SunoExtractor:
                 self.driver.get(song['url'])
                 time.sleep(delay)
                 
-                # Try to reveal lyrics tab or expanded content before parsing
+                # Try to reveal lyrics tab
                 try:
-                    lyrics_click_xpaths = [
-                        "//button[contains(., 'Lyrics')]",
-                        "//*[@role='tab'][contains(., 'Lyrics')]",
-                        "//div[contains(@class, 'tab')][contains(., 'Lyrics')]",
-                        "//a[contains(., 'Lyrics')]",
-                        "//button[contains(., 'Show more')]"
-                    ]
-                    for xp in lyrics_click_xpaths:
-                        try:
-                            el = self.driver.find_element(By.XPATH, xp)
-                            if el.is_displayed() and el.is_enabled():
-                                el.click()
-                                time.sleep(0.6)
-                                break
-                        except Exception:
-                            continue
+                    self._click_lyrics_tab()
                 except Exception:
                     pass
 
                 # Parse song page
                 soup = BeautifulSoup(self.driver.page_source, 'lxml')
                 
-                # Extract full lyrics - try multiple strategies
-                lyrics_text = ""
-                
-                # Strategy 1: Look for elements with lyrics-related classes
-                lyrics_selectors = [
-                    soup.find('pre', class_=re.compile(r'lyrics', re.I)),
-                    soup.find('div', class_=re.compile(r'^lyrics$', re.I)),  # Exact match
-                    soup.find(attrs={'data-lyrics': True}),
-                ]
-                for lyrics_elem in lyrics_selectors:
-                    if lyrics_elem:
-                        text = lyrics_elem.get_text(separator='\n', strip=True)
-                        # Filter out navigation text
-                        if len(text) > 50 and 'Home' not in text[:100] and 'Create' not in text[:100]:
-                            if len(text) > len(lyrics_text):
-                                lyrics_text = text
-                
-                # Strategy 2: Find the smallest element containing verse/chorus markers
-                # (to avoid grabbing the whole page)
-                if not lyrics_text:
-                    candidates = []
-                    for elem in soup.find_all(['div', 'pre', 'p', 'span']):
-                        # Skip navigation/header elements
-                        if elem.find_parent(['nav', 'header', 'footer']):
-                            continue
-                        classes = ' '.join(elem.get('class', []))
-                        if re.search(r'nav|menu|header|footer|sidebar', classes, re.I):
-                            continue
-                        
-                        text = elem.get_text(separator='\n', strip=True)
-                        # Must have lyrics markers and reasonable length
-                        if re.search(r'\[Verse|\[Chorus|\[Bridge|\[Intro|\[Outro', text, re.I):
-                            if 50 < len(text) < 5000:  # Reasonable lyrics length
-                                # Skip if it contains navigation keywords
-                                if 'Home' in text[:100] or 'Create' in text[:100] or 'Library' in text[:100]:
-                                    continue
-                                candidates.append((len(text), text, elem))
-                    
-                    # Pick the smallest valid candidate (most specific)
-                    if candidates:
-                        candidates.sort(key=lambda x: x[0])
-                        lyrics_text = candidates[0][1]
-                
-                # Strategy 3: Look for whitespace-pre elements (common for lyrics)
-                if not lyrics_text:
-                    for elem in soup.find_all(style=re.compile(r'white-space.*pre', re.I)):
-                        if elem.find_parent(['nav', 'header', 'footer']):
-                            continue
-                        text = elem.get_text(separator='\n', strip=True)
-                        if 50 < len(text) < 5000:
-                            if 'Home' not in text[:100] and 'Create' not in text[:100]:
-                                if len(text) > len(lyrics_text):
-                                    lyrics_text = text
-                
+                # Extract lyrics using helper method
+                lyrics_text = self._extract_lyrics(soup)
                 if lyrics_text:
                     song['lyrics'] = lyrics_text
                     logger.debug(f"Found lyrics ({len(lyrics_text)} chars) for {song['title']}")
                 
-                # Extract full description
-                desc_selectors = [
-                    soup.find('div', class_=re.compile(r'description|prompt', re.I)),
-                    soup.find('p', class_=re.compile(r'description', re.I)),
-                    soup.find(attrs={'data-description': True})
-                ]
+                # Extract description using helper method
+                song['description'] = self._extract_description(soup, song.get('description', ''))
                 
-                for desc_elem in desc_selectors:
-                    if desc_elem:
-                        desc_text = desc_elem.get_text(strip=True)
-                        if len(desc_text) > len(song['description']):
-                            song['description'] = desc_text
-                            break
+                # Extract metadata using helper method
+                self._extract_metadata(soup, song)
                 
-                # Extract additional metadata
-                meta_elements = soup.find_all(['span', 'div', 'p'], 
-                                             class_=re.compile(r'meta|info|stat', re.I))
-                
-                for meta in meta_elements:
-                    text = meta.get_text(strip=True).lower()
-                    
-                    if not song['duration'] and re.search(r'\d:\d{2}', text):
-                        song['duration'] = meta.get_text(strip=True)
-                    
-                    if not song['plays'] and 'play' in text:
-                        song['plays'] = meta.get_text(strip=True)
-                    
-                    if not song['likes'] and 'like' in text:
-                        song['likes'] = meta.get_text(strip=True)
-                    
-                    if not song['created_at'] and ('ago' in text or 'created' in text):
-                        song['created_at'] = meta.get_text(strip=True)
-                
-                # Extract better tags if available
-                tag_elements = soup.find_all(class_=re.compile(r'tag|genre|style|badge', re.I))
-                if tag_elements:
-                    new_tags = [tag.get_text(strip=True) for tag in tag_elements]
-                    song['tags'] = list(set(song['tags'] + new_tags))
+                # Extract tags using helper method
+                song['tags'] = self._extract_tags(soup, song.get('tags', []))
                 
                 has_lyrics = "with lyrics" if song.get('lyrics') else "no lyrics"
                 logger.info(f"✓ Extracted details for: {song['title']} ({has_lyrics})")

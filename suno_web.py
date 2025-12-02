@@ -322,7 +322,10 @@ SONGS_TEMPLATE = '''
 {% extends "base" %}
 {% block content %}
 <div class="flex items-center justify-between mb-6">
-    <h1 class="text-3xl font-bold"><i class="fas fa-music mr-2"></i>All Songs</h1>
+    <h1 class="text-3xl font-bold">
+        <i class="fas fa-music mr-2"></i>All Songs
+        <span class="text-lg font-normal text-gray-400 ml-2">({{ total_songs }} total)</span>
+    </h1>
     <div class="flex items-center space-x-4">
         <input type="text" id="search" placeholder="Search..." 
                class="glass rounded-lg px-4 py-2 bg-transparent border-none focus:ring-2 focus:ring-purple-500"
@@ -392,6 +395,49 @@ SONGS_TEMPLATE = '''
         </tbody>
     </table>
 </div>
+
+<!-- Pagination Controls -->
+{% if total_pages > 1 %}
+<div class="flex items-center justify-between mt-6">
+    <div class="text-gray-400">
+        Showing {{ (page - 1) * per_page + 1 }} - {{ [page * per_page, total_songs] | min }} of {{ total_songs }} songs
+    </div>
+    <div class="flex items-center space-x-2">
+        {% if page > 1 %}
+        <a href="?page=1&per_page={{ per_page }}" 
+           class="glass px-3 py-2 rounded-lg hover:bg-white/10 transition" title="First">
+            <i class="fas fa-angle-double-left"></i>
+        </a>
+        <a href="?page={{ page - 1 }}&per_page={{ per_page }}" 
+           class="glass px-3 py-2 rounded-lg hover:bg-white/10 transition" title="Previous">
+            <i class="fas fa-angle-left"></i>
+        </a>
+        {% endif %}
+        
+        <span class="px-4 py-2 bg-purple-600/30 rounded-lg">
+            Page {{ page }} of {{ total_pages }}
+        </span>
+        
+        {% if page < total_pages %}
+        <a href="?page={{ page + 1 }}&per_page={{ per_page }}" 
+           class="glass px-3 py-2 rounded-lg hover:bg-white/10 transition" title="Next">
+            <i class="fas fa-angle-right"></i>
+        </a>
+        <a href="?page={{ total_pages }}&per_page={{ per_page }}" 
+           class="glass px-3 py-2 rounded-lg hover:bg-white/10 transition" title="Last">
+            <i class="fas fa-angle-double-right"></i>
+        </a>
+        {% endif %}
+        
+        <select onchange="window.location.href='?page=1&per_page='+this.value" 
+                class="glass rounded-lg px-3 py-2 bg-transparent ml-4">
+            <option value="25" {{ 'selected' if per_page == 25 }}>25 per page</option>
+            <option value="50" {{ 'selected' if per_page == 50 }}>50 per page</option>
+            <option value="100" {{ 'selected' if per_page == 100 }}>100 per page</option>
+        </select>
+    </div>
+</div>
+{% endif %}
 
 <script>
     let allSongs = {{ songs | tojson }};
@@ -577,13 +623,31 @@ def home():
 @app.route('/songs')
 def songs():
     db = get_database()
+    
+    # Get pagination parameters
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    per_page = min(per_page, 100)  # Cap at 100
+    
+    # Get all songs for now (can optimize with DB-level pagination later)
     all_songs = db.get_all_songs()
+    total_songs = len(all_songs)
+    total_pages = max(1, (total_songs + per_page - 1) // per_page)
+    
+    # Ensure page is in valid range
+    page = max(1, min(page, total_pages))
+    
+    # Slice for current page
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    page_songs = all_songs[start_idx:end_idx]
     
     # Add ratings
-    for song in all_songs:
+    for song in page_songs:
         song['rating'] = db.get_rating(song['id'])
     
-    return render('songs', title='Songs', songs=all_songs)
+    return render('songs', title='Songs', songs=page_songs,
+                  page=page, total_pages=total_pages, per_page=per_page, total_songs=total_songs)
 
 
 @app.route('/stats')

@@ -18,6 +18,14 @@ from urllib.parse import urlparse
 # Shared utilities
 from suno_utils import parse_duration, extract_song_id, safe_filename, DownloadError
 
+# Configuration (optional, for retry settings)
+try:
+    from suno_core import get_config
+    CONFIG_AVAILABLE = True
+except ImportError:
+    CONFIG_AVAILABLE = False
+    get_config = None
+
 # Audio metadata handling
 try:
     from mutagen.mp3 import MP3
@@ -150,19 +158,46 @@ class SunoDownloader:
             logger.info(f"Already exists: {source_filename}")
             return source_filepath
         
-        # Download source file
+        # Download source file with retry logic
         try:
             # Only download if source doesn't exist
             if not source_filepath.exists():
-                logger.info(f"Downloading: {title}")
-                response = self.session.get(url, stream=True, timeout=60)
-                response.raise_for_status()
+                # Get retry settings from config
+                max_retries = 3
+                retry_delay = 2
+                if CONFIG_AVAILABLE and get_config:
+                    try:
+                        config = get_config()
+                        max_retries = config.get('download', 'retry_attempts', default=3)
+                        retry_delay = config.get('download', 'retry_delay', default=2)
+                    except Exception:
+                        pass
                 
-                with open(source_filepath, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                
-                logger.info(f"Downloaded: {source_filename}")
+                last_error = None
+                for attempt in range(max_retries):
+                    try:
+                        logger.info(f"Downloading: {title}" + (f" (attempt {attempt + 1})" if attempt > 0 else ""))
+                        response = self.session.get(url, stream=True, timeout=60)
+                        response.raise_for_status()
+                        
+                        with open(source_filepath, 'wb') as f:
+                            for chunk in response.iter_content(chunk_size=8192):
+                                f.write(chunk)
+                        
+                        logger.info(f"Downloaded: {source_filename}")
+                        break  # Success, exit retry loop
+                        
+                    except (requests.RequestException, IOError) as e:
+                        last_error = e
+                        if attempt < max_retries - 1:
+                            logger.warning(f"Download failed (attempt {attempt + 1}/{max_retries}): {e}")
+                            time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                            # Clean up partial file if it exists
+                            if source_filepath.exists():
+                                source_filepath.unlink()
+                        else:
+                            logger.error(f"Download failed after {max_retries} attempts: {e}")
+                            raise DownloadError(f"Failed to download {title} after {max_retries} attempts: {e}") from e
                 
                 # Add metadata if requested
                 if add_metadata and MUTAGEN_AVAILABLE:

@@ -10,7 +10,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional, Set, Any
 import re
 from urllib.parse import urljoin
 
@@ -72,7 +72,7 @@ class SunoExtractor:
         self.wait = None
         self.extracted_urls: Set[str] = set()
         
-    def connect_to_existing_browser(self, debug_port: int = None):
+    def connect_to_existing_browser(self, debug_port: int = None) -> None:
         """
         Connect to existing browser session
         
@@ -113,7 +113,7 @@ class SunoExtractor:
         else:
             raise ExtractionError(f"Unsupported browser: {self.browser_type}")
     
-    def navigate_to_liked_songs(self):
+    def navigate_to_liked_songs(self) -> None:
         """Navigate to liked songs page in existing session"""
         logger.info("Navigating to liked songs...")
         
@@ -154,7 +154,7 @@ class SunoExtractor:
         except Exception as e:
             logger.warning(f"Navigation issue: {e}")
     
-    def scroll_to_load_all(self, max_scrolls: int = 600, scroll_pause: float = 1.2):
+    def scroll_to_load_all(self, max_scrolls: int = 600, scroll_pause: float = 1.2) -> None:
         """
         Scroll page to trigger lazy loading of all songs
         
@@ -248,7 +248,7 @@ class SunoExtractor:
 
         logger.info(f"✓ Finished scrolling ({scroll_count} iterations)")
     
-    def extract_all_songs(self) -> List[Dict]:
+    def extract_all_songs(self) -> List[Dict[str, Any]]:
         """
         Extract all visible song data from current page
         
@@ -336,7 +336,7 @@ class SunoExtractor:
         logger.info(f"OK Extracted {len(songs)} unique songs from primary container")
         return songs
 
-    def navigate_to_tab(self, tab: str):
+    def navigate_to_tab(self, tab: str) -> None:
         """Navigate to a specific tab on /me page (e.g., 'likes', 'creations')."""
         base = "https://suno.com/me"
         tab = (tab or '').lower()
@@ -463,7 +463,7 @@ class SunoExtractor:
         logger.info(f"Next page appears to have {len(new_links)} new song links")
         return True
 
-    def _extract_all_pages_for_tab(self, tab: str, max_pages: int = 50) -> List[Dict]:
+    def _extract_all_pages_for_tab(self, tab: str, max_pages: int = 50) -> List[Dict[str, Any]]:
         """Extract songs from all paginated pages for the given tab.
 
         This will:
@@ -509,7 +509,7 @@ class SunoExtractor:
 
         return all_songs
     
-    def _parse_song_element(self, element, idx: int) -> Optional[Dict]:
+    def _parse_song_element(self, element: Any, idx: int) -> Optional[Dict[str, Any]]:
         """
         Parse individual song element with robust selectors
         
@@ -645,7 +645,7 @@ class SunoExtractor:
         
         return song_data
     
-    def extract_detailed_info(self, songs: List[Dict], delay: float = 1.5) -> List[Dict]:
+    def extract_detailed_info(self, songs: List[Dict[str, Any]], delay: float = 1.5) -> List[Dict[str, Any]]:
         """
         Visit each song page to extract full lyrics and details
         
@@ -797,7 +797,7 @@ class SunoExtractor:
         logger.info(f"Detailed extraction complete: {sum(1 for s in songs if s.get('lyrics'))} songs have lyrics")
         return songs
     
-    def save_to_markdown(self, songs: List[Dict], filename: str = None) -> Path:
+    def save_to_markdown(self, songs: List[Dict[str, Any]], filename: Optional[str] = None) -> Path:
         """
         Save songs to formatted Markdown file
         
@@ -878,7 +878,7 @@ class SunoExtractor:
         logger.info(f"✓ Markdown saved to: {filepath}")
         return filepath
     
-    def save_to_json(self, songs: List[Dict], filename: str = None) -> Path:
+    def save_to_json(self, songs: List[Dict[str, Any]], filename: Optional[str] = None) -> Path:
         """
         Save songs to JSON format with full metadata
         
@@ -912,7 +912,7 @@ class SunoExtractor:
         logger.info(f"✓ JSON saved to: {filepath}")
         return filepath
     
-    def save_to_csv(self, songs: List[Dict], filename: str = None) -> Path:
+    def save_to_csv(self, songs: List[Dict[str, Any]], filename: Optional[str] = None) -> Path:
         """
         Save songs to CSV format for spreadsheet analysis
         

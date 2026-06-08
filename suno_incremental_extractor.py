@@ -99,12 +99,14 @@ def navigate_to_likes(driver: webdriver.Chrome) -> bool:
         try:
             el = driver.find_element(By.XPATH, xp)
             if el.is_displayed():
-                # Check if already active/selected (aria-pressed, aria-selected, or class containing active/selected)
+                # Check if already active/selected (aria-pressed, aria-selected, Tailwind active bg class)
+                cls = (el.get_attribute("class") or "").lower()
                 is_active = (
                     el.get_attribute("aria-pressed") == "true" or
                     el.get_attribute("aria-selected") == "true" or
-                    "active" in (el.get_attribute("class") or "").lower() or
-                    "selected" in (el.get_attribute("class") or "").lower()
+                    "active" in cls or
+                    "selected" in cls or
+                    "bg-foreground-primary" in cls
                 )
                 if is_active:
                     logger.info(f"Likes tab already active, skipping click")
@@ -540,18 +542,39 @@ def main():
     # Save Phase 1 checkpoint
     save_checkpoint(songs, output_dir, "phase1_urls")
     
-    # Phase 2: Extract detailed info for each song
-    logger.info("=" * 40)
-    logger.info(f"PHASE 2: Extracting details for {len(songs)} songs")
-    logger.info("=" * 40)
+    # Load existing song IDs from database to skip detail extraction for known songs
+    existing_ids = set()
+    db_path = "suno_library.db"
+    try:
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        c.execute("SELECT id FROM songs")
+        existing_ids = {row[0] for row in c.fetchall()}
+        conn.close()
+        logger.info(f"Loaded {len(existing_ids)} existing song IDs from database")
+    except Exception as e:
+        logger.warning(f"Could not load existing IDs from DB: {e}")
     
-    for i, song in enumerate(songs, 1):
-        logger.info(f"[{i}/{len(songs)}] {song.get('title', '?')}")
-        extract_song_details(driver, song)
+    # Filter to only new songs for Phase 2
+    new_songs = [s for s in songs if s.get("id") not in existing_ids]
+    existing_songs = [s for s in songs if s.get("id") in existing_ids]
+    logger.info(f"Phase 2: {len(new_songs)} new songs to detail, {len(existing_songs)} already in DB (skipped)")
+    
+    if new_songs:
+        logger.info("=" * 40)
+        logger.info(f"PHASE 2: Extracting details for {len(new_songs)} new songs")
+        logger.info("=" * 40)
         
-        # Save checkpoint periodically
-        if i % SAVE_CHECKPOINT_EVERY == 0:
-            save_checkpoint(songs, output_dir, f"phase2_details_{i}")
+        for i, song in enumerate(new_songs, 1):
+            logger.info(f"[{i}/{len(new_songs)}] {song.get('title', '?')}")
+            extract_song_details(driver, song)
+            
+            # Save checkpoint periodically
+            if i % SAVE_CHECKPOINT_EVERY == 0:
+                save_checkpoint(songs, output_dir, f"phase2_details_{i}")
+    else:
+        logger.info("No new songs found — skipping Phase 2 detail extraction")
     
     # Phase 3: Save final outputs
     logger.info("=" * 40)
@@ -568,6 +591,8 @@ def main():
     logger.info("=" * 70)
     logger.info("EXTRACTION COMPLETE")
     logger.info(f"  Total songs: {len(songs)}")
+    logger.info(f"  New songs detailed: {len(new_songs)}")
+    logger.info(f"  Existing songs (skipped): {len(existing_songs)}")
     logger.info(f"  With lyrics: {songs_with_lyrics} ({100*songs_with_lyrics/max(len(songs),1):.1f}%)")
     logger.info(f"  With style description: {songs_with_desc} ({100*songs_with_desc/max(len(songs),1):.1f}%)")
     logger.info(f"  With tags: {songs_with_tags} ({100*songs_with_tags/max(len(songs),1):.1f}%)")

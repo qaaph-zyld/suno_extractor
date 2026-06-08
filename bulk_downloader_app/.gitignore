@@ -1,0 +1,9 @@
+# Local virtualenv
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Downloaded Suno library (keep audio private)
+suno_library/

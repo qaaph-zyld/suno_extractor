@@ -112,30 +112,30 @@ def update_db(song_id, lyrics, description):
 
 def main():
     missing = get_missing_songs()
-    done = load_progress()
-    todo = [r for r in missing if r[0] not in done]
     print("Total missing metadata: %d" % len(missing))
-    print("Already done: %d" % len(done))
-    print("Remaining: %d" % len(todo))
-    if not todo:
+    if not missing:
         print("Nothing to do!")
         return
     driver = connect_to_chrome()
     print("Connected to Chrome")
+    done_count = 0
     try:
-        for i, (song_id, title, url, old_lyrics, old_desc) in enumerate(todo, 1):
+        for i, (song_id, title, url, old_lyrics, old_desc) in enumerate(missing, 1):
             needs_lyrics = not old_lyrics or len(old_lyrics) == 0
             needs_desc = not old_desc or len(old_desc) == 0
-            print("[%d/%d] %s (lyrics:%s desc:%s)" % (i, len(todo), title[:50], "Y" if needs_lyrics else "N", "Y" if needs_desc else "N"))
+            print("[%d/%d] %s (lyrics:%s desc:%s)" % (i, len(missing), title[:50], "Y" if needs_lyrics else "N", "Y" if needs_desc else "N"))
             new_lyrics, new_desc = extract_details(driver, url)
-            update_db(song_id, new_lyrics if needs_lyrics else old_lyrics, new_desc if needs_desc else old_desc)
-            done.add(song_id)
-            save_progress(done)
+            # Only save values if we actually got something
+            final_lyrics = new_lyrics if needs_lyrics and new_lyrics else old_lyrics
+            final_desc = new_desc if needs_desc and new_desc else old_desc
+            update_db(song_id, final_lyrics, final_desc)
+            if (needs_lyrics and new_lyrics) or (needs_desc and new_desc):
+                done_count += 1
             if i % 50 == 0:
-                print("  Checkpoint saved (%d/%d)" % (i, len(todo)))
+                print("  Progress: %d/%d processed, %d actually improved" % (i, len(missing), done_count))
     finally:
         driver.quit()
-    print("Done!")
+    print("Done! %d songs improved out of %d processed" % (done_count, len(missing)))
 
 if __name__ == "__main__":
     main()

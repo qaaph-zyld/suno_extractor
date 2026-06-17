@@ -20,8 +20,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 
 DEBUG_PORT = 9222
-PAGE_LOAD_WAIT = 5.0
-LYRICS_EXPAND_WAIT = 3.0
+PAGE_LOAD_WAIT = 2.0
+LYRICS_EXPAND_WAIT = 1.0
 PROGRESS_FILE = "metadata_progress.json"
 
 def connect_to_chrome():
@@ -95,14 +95,12 @@ def extract_lyrics_via_textarea(driver, url):
 
         # Step 1: Click "Edit Displayed Lyrics" button
         try:
-            edit_btn = WebDriverWait(driver, 5).until(
+            edit_btn = WebDriverWait(driver, 3).until(
                 EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Edit Displayed Lyrics')]"))
             )
             edit_btn.click()
-            print("  Clicked 'Edit Displayed Lyrics'")
             time.sleep(LYRICS_EXPAND_WAIT)
         except Exception as e:
-            print("  No 'Edit Displayed Lyrics' button: %s" % e)
             return ""
 
         # Step 2: Find textarea with lyrics (may be hidden but value is present)
@@ -188,7 +186,8 @@ def main():
                 done_count += 1
 
             done.add(song_id)
-            save_progress(done)
+            if i % 10 == 0:
+                save_progress(done)
 
             if i % 50 == 0:
                 print("  Progress: %d/%d processed, %d improved" % (i, len(todo), done_count))

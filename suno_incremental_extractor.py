@@ -79,12 +79,13 @@ def navigate_to_likes(driver: webdriver.Chrome) -> bool:
     """Navigate to the Suno likes page."""
     current = driver.current_url or ""
     
-    # If already on /me with likes visible, don't navigate away
-    if "suno.com/me" in current:
-        logger.info("Already on /me page, checking Likes tab state...")
+    # If already on /playlist/liked, stay there
+    if "suno.com/playlist/liked" in current:
+        logger.info("Already on /playlist/liked page")
+        return True
     else:
-        driver.get("https://suno.com/me")
-        time.sleep(3)
+        driver.get("https://suno.com/playlist/liked")
+        time.sleep(5)
     
     # Try to find "Likes" / "Liked" tab/button
     tab_xpaths = [
@@ -145,48 +146,25 @@ def capture_songs_from_dom(driver: webdriver.Chrome, known_ids: Set[str]) -> Lis
             if (seen.has(songId)) continue;
             seen.add(songId);
             
-            // Try to get title from the link or nearby elements
-            let title = '';
-            
-            // Look for heading elements near the link
-            const row = link.closest('[class*="border-b"], [class*="py-"], tr, [class*="item"], [class*="card"]');
-            if (row) {
-                const heading = row.querySelector('h1, h2, h3, h4, h5, h6, [class*="title"], [class*="name"]');
-                if (heading) title = heading.textContent.trim();
-            }
-            
+            // Try to get title - check aria-label, title attribute, or text content
+            let title = link.getAttribute('aria-label') || link.getAttribute('title') || '';
             if (!title) {
+                // Look for any text in the link or its descendants
                 title = link.textContent.trim();
             }
-            
-            // Try to get additional info from the row
-            let artist = '';
-            let duration = '';
-            let imageUrl = '';
-            
-            if (row) {
-                // Look for artist info
-                const spans = row.querySelectorAll('span, p, div');
-                for (const span of spans) {
-                    const text = span.textContent.trim();
-                    // Duration pattern (e.g., "3:42")
-                    if (/^\\d{1,2}:\\d{2}$/.test(text)) {
-                        duration = text;
-                    }
-                }
-                
-                // Look for image
-                const img = row.querySelector('img[src*="cdn"], img[src*="suno"]');
-                if (img) imageUrl = img.getAttribute('src') || '';
+            if (!title) {
+                // Check parent element for text
+                const parent = link.parentElement;
+                if (parent) title = parent.textContent.trim().substring(0, 100);
             }
             
             songs.push({
                 id: songId,
                 url: 'https://suno.com' + href,
                 title: title || '(untitled)',
-                artist: artist,
-                duration: duration,
-                image_url: imageUrl
+                artist: '',
+                duration: '',
+                image_url: ''
             });
         }
         

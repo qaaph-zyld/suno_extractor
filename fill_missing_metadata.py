@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Fill missing lyrics and descriptions for existing liked songs.
-Connects to Chrome via remote debugging, visits each song page,
-and extracts missing metadata directly into the database.
+Uses Chrome remote debugging + copy button to extract lyrics from clipboard.
+Also extracts gpt_description_prompt from embedded page JSON.
 """
 import io, sys, json, sqlite3, re, time, logging
 from pathlib import Path
@@ -15,10 +15,13 @@ if sys.platform == "win32":
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 
 DEBUG_PORT = 9222
-DETAIL_DELAY = 2.0
+PAGE_LOAD_WAIT = 5.0
+LYRICS_EXPAND_WAIT = 3.0
 PROGRESS_FILE = "metadata_progress.json"
 
 def connect_to_chrome():
@@ -50,56 +53,95 @@ def get_missing_songs():
     conn.close()
     return rows
 
-def extract_details(driver, url):
+def extract_description_from_json(driver):
+    """Extract gpt_description_prompt from embedded JSON script tags."""
+    try:
+        scripts = driver.find_elements(By.TAG_NAME, "script")
+        for s in scripts:
+            text = s.get_attribute("textContent") or ""
+            if len(text) > 1000 and "gpt_description_prompt" in text:
+                # Find JSON object containing gpt_description_prompt
+                for match in re.finditer(r'\{[^{}]*"gpt_description_prompt"[^{}]*\}', text):
+                    try:
+                        data = json.loads(match.group(0))
+                        desc = data.get("gpt_description_prompt", "")
+                        if desc and len(desc) > 10:
+                            return desc
+                    except:
+                        pass
+                # Also try a broader search
+                match = re.search(r'"gpt_description_prompt"\s*:\s*"([^"]{20,5000})"', text)
+                if match:
+                    desc = match.group(1).replace('\\n', '\n').replace('\\"', '"')
+                    if len(desc) > 10:
+                        return desc
+    except Exception as e:
+        print("  desc JSON error: %s" % e)
+    return ""
+
+def extract_lyrics_via_textarea(driver, url):
+    """
+    Navigate to song page, click 'Edit Displayed Lyrics',
+    then read lyrics from the textarea that appears.
+    """
     try:
         driver.get(url)
-        time.sleep(DETAIL_DELAY)
-        # Click lyrics tab if present
+        time.sleep(PAGE_LOAD_WAIT)
+
+        # Check if page loaded or 404
+        if "404" in driver.title or "not found" in driver.page_source.lower():
+            print("  Page 404")
+            return ""
+
+        # Step 1: Click "Edit Displayed Lyrics" button
         try:
-            for btn in driver.find_elements(By.XPATH, "//button[contains(normalize-space(.), 'Lyrics')]"):
-                if btn.is_displayed():
-                    btn.click()
-                    time.sleep(0.5)
-                    break
-        except Exception:
-            pass
-        soup = BeautifulSoup(driver.page_source, "lxml")
-        # Lyrics
+            edit_btn = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Edit Displayed Lyrics')]"))
+            )
+            edit_btn.click()
+            print("  Clicked 'Edit Displayed Lyrics'")
+            time.sleep(LYRICS_EXPAND_WAIT)
+        except Exception as e:
+            print("  No 'Edit Displayed Lyrics' button: %s" % e)
+            return ""
+
+        # Step 2: Find textarea with lyrics (may be hidden but value is present)
         lyrics = ""
-        for sel in [
-            {"name": "pre"},
-            {"name": "div", "attrs": {"class": re.compile(r"lyrics", re.I)}},
-            {"name": "p", "attrs": {"class": re.compile(r"lyrics|whitespace-pre", re.I)}},
-            {"name": "div", "attrs": {"data-testid": re.compile(r"lyrics", re.I)}},
-        ]:
-            for el in soup.find_all(sel["name"], sel.get("attrs", {})):
-                text = el.get_text("\n", strip=True)
-                if len(text) > len(lyrics):
-                    lyrics = text
+        try:
+            # Primary: look for textarea with substantial content
+            # Note: textarea may have displayed=False but value is still accessible
+            for textarea in driver.find_elements(By.TAG_NAME, "textarea"):
+                val = textarea.get_attribute("value") or ""
+                if len(val) > 50:
+                    lyrics = val
+                    print("  Found lyrics in textarea, len=%d" % len(lyrics))
+                    break
+        except Exception as e:
+            print("  textarea search error: %s" % e)
+
+        # Fallback: contenteditable
         if not lyrics:
-            for el in soup.find_all(style=re.compile(r"white-space.*pre")):
-                text = el.get_text("\n", strip=True)
-                if len(text) > 50 and len(text) > len(lyrics):
-                    lyrics = text
-        # Description
-        description = ""
-        for sel in [
-            {"name": "div", "attrs": {"class": re.compile(r"description|prompt|style", re.I)}},
-            {"name": "p", "attrs": {"class": re.compile(r"description|prompt|style|text-muted|text-secondary", re.I)}},
-            {"name": "span", "attrs": {"class": re.compile(r"description|prompt|style", re.I)}},
-        ]:
-            for el in soup.find_all(sel["name"], sel.get("attrs", {})):
-                text = el.get_text(strip=True)
-                if text and len(text) > len(description):
-                    description = text
-        if not description:
-            meta = soup.find("meta", attrs={"name": "description"})
-            if meta:
-                description = meta.get("content", "")
-        return lyrics, description
+            try:
+                for el in driver.find_elements(By.XPATH, "//*[@contenteditable='true']"):
+                    text = el.text
+                    if len(text) > 50:
+                        lyrics = text
+                        print("  Found lyrics in contenteditable, len=%d" % len(lyrics))
+                        break
+            except Exception as e:
+                print("  contenteditable search error: %s" % e)
+
+        return lyrics
+
     except Exception as e:
-        print("  ERROR extracting: %s" % e)
-        return "", ""
+        print("  ERROR: %s" % e)
+        return ""
+
+def extract_details(driver, url):
+    """Extract both lyrics (via textarea) and description (via JSON)."""
+    lyrics = extract_lyrics_via_textarea(driver, url)
+    description = extract_description_from_json(driver)
+    return lyrics, description
 
 def update_db(song_id, lyrics, description):
     conn = sqlite3.connect("suno_library.db", timeout=30.0)
@@ -116,26 +158,44 @@ def main():
     if not missing:
         print("Nothing to do!")
         return
+
+    done = load_progress()
+    todo = [r for r in missing if r[0] not in done]
+    print("Already done: %d" % len(done))
+    print("Remaining: %d" % len(todo))
+    if not todo:
+        print("Nothing to do!")
+        return
+
     driver = connect_to_chrome()
     print("Connected to Chrome")
     done_count = 0
+
     try:
-        for i, (song_id, title, url, old_lyrics, old_desc) in enumerate(missing, 1):
+        for i, (song_id, title, url, old_lyrics, old_desc) in enumerate(todo, 1):
             needs_lyrics = not old_lyrics or len(old_lyrics) == 0
             needs_desc = not old_desc or len(old_desc) == 0
-            print("[%d/%d] %s (lyrics:%s desc:%s)" % (i, len(missing), title[:50], "Y" if needs_lyrics else "N", "Y" if needs_desc else "N"))
+            print("[%d/%d] %s (lyrics:%s desc:%s)" % (i, len(todo), title[:50], "Y" if needs_lyrics else "N", "Y" if needs_desc else "N"))
+
             new_lyrics, new_desc = extract_details(driver, url)
-            # Only save values if we actually got something
+
             final_lyrics = new_lyrics if needs_lyrics and new_lyrics else old_lyrics
             final_desc = new_desc if needs_desc and new_desc else old_desc
+
             update_db(song_id, final_lyrics, final_desc)
+
             if (needs_lyrics and new_lyrics) or (needs_desc and new_desc):
                 done_count += 1
+
+            done.add(song_id)
+            save_progress(done)
+
             if i % 50 == 0:
-                print("  Progress: %d/%d processed, %d actually improved" % (i, len(missing), done_count))
+                print("  Progress: %d/%d processed, %d improved" % (i, len(todo), done_count))
     finally:
         driver.quit()
-    print("Done! %d songs improved out of %d processed" % (done_count, len(missing)))
+
+    print("Done! %d songs improved out of %d" % (done_count, len(todo)))
 
 if __name__ == "__main__":
     main()

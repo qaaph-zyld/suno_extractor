@@ -26,3 +26,34 @@ Restored verified liked song flags from May checkpoint, fixed extractor navigati
 - Monitor extraction progress overnight
 - Verify lyrics count increases
 - Commit final results
+
+---
+
+## 2026-06-18 - Discovered Suno API & Corrected Liked Count
+
+### Summary
+Found Suno's internal API (`studio-api-prod.suno.com/api/feed/v3`), extracted true liked songs with proper `is_liked` filtering.
+
+### Changes Made
+- **DISCOVERED**: Suno API endpoint `studio-api-prod.suno.com/api/feed/v3`
+- **CORRECTED**: True liked song count is **3,254** (not 8,186 from stale checkpoint)
+- **ADDED**: `extract_true_liked.py` - extracts only songs with `is_liked=True` from API
+- **RESET**: All `is_liked` flags to 0, then set correctly for 3,254 songs
+- **REMOVED**: Old stale checkpoint data (8,186 incorrect liked songs)
+
+### Current Status
+- Liked songs in DB: **3,254**
+- Songs with lyrics: ~890
+- Missing lyrics: **2,364**
+- Missing description: **2,436**
+- Extraction speed: **~400 songs/hour**
+- Estimated completion: **~6 hours**
+
+### Files Added
+- `extract_true_liked.py`
+- `extract_liked_fast.py`
+- `extract_liked_robust.py`
+
+### Next Steps
+- Run metadata extraction for 2,364 remaining liked songs
+- Monitor progress
